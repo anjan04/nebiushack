@@ -135,6 +135,30 @@ def main():
         max_ts = int(jnp.max(tm.max_timestep))
         fps = int(max_ts / max(elapsed, 1e-6))
 
+        # Save checkpoint: always save to latest
+        ckpt_dir = os.path.join(ROOT, "checkpoints")
+        latest_dir = os.path.join(ckpt_dir, "latest")
+        os.makedirs(latest_dir, exist_ok=True)
+        saved_path = PPOJax.save_agent(latest_dir, agent_conf, out["agent_state"])
+        print(f"[train_loco] Checkpoint saved to {saved_path}")
+
+        # Save to best/ if this is the best score so far
+        best_score_file = os.path.join(ckpt_dir, "best_score.txt")
+        prev_best = None
+        if os.path.exists(best_score_file):
+            try:
+                with open(best_score_file) as f:
+                    prev_best = float(f.read().strip())
+            except (ValueError, OSError):
+                prev_best = None
+        if prev_best is None or mean_ret > prev_best:
+            best_dir = os.path.join(ckpt_dir, "best")
+            os.makedirs(best_dir, exist_ok=True)
+            best_path = PPOJax.save_agent(best_dir, agent_conf, out["agent_state"])
+            with open(best_score_file, "w") as f:
+                f.write(f"{mean_ret}")
+            print(f"[train_loco] New best score {mean_ret:.4f} — saved to {best_path}")
+
         # Print in EXACT format expected by agent.py
         print(f"METRICS: primary_score={mean_ret:.4f} "
               f"episode_return={mean_ret:.1f} "

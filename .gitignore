@@ -37,7 +37,6 @@ runs/
 outputs/
 
 # Project specific
-results/
 *.mp4
 
 # OS files

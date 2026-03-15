@@ -1,0 +1,13 @@
+==================================================
+  AutoRobot — Experiment Summary
+==================================================
+  Total experiments:   2
+  Improvements found:  2
+  Baseline score:      55.1997 m/s
+  Best score:          63.7379 m/s
+  Improvement:         +8.5382 m/s (15.5%)
+
+  Top impactful changes:
+    1. +55.1997 m/s — experiment 1 (exp #1)
+    2. +8.5382 m/s — experiment 2 (exp #2)
+==================================================
