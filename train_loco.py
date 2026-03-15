@@ -104,6 +104,13 @@ def main():
             "anneal_lr": False,
             "normalize_env": True,
             "debug": False,
+            "n_seeds": 1,
+            "vmap_across_seeds": True,
+            "learnable_std": False,
+            "weight_decay": 0.0,
+            "proportion_env_reward": 0.0,
+            "validation": {"active": False, "num_steps": 100,
+                           "num_envs": 100, "num": 10},
         }
 
         from omegaconf import OmegaConf
