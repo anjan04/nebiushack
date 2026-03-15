@@ -18,12 +18,12 @@ def load_experiments():
             with open(path) as f:
                 data = json.load(f)
             exp_num = data.get("experiment") or data.get("iteration")
-            score = data.get("primary_score")
+            score = data.get("primary_score") or data.get("metrics", {}).get("primary_score")
             if exp_num is None or score is None:
                 continue
             experiments.append({
                 "experiment": int(exp_num), "primary_score": float(score),
-                "kept": bool(data.get("kept", data.get("improved", False))),
+                "kept": bool(data.get("kept", data.get("improved", data.get("decision") == "improvement"))),
                 "description": data.get("description", data.get("change", "")),
             })
         except (json.JSONDecodeError, ValueError, TypeError, OSError):
