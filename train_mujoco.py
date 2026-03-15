@@ -12,6 +12,43 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
+# ── Custom reward wrapper ────────────────────────────────────────────────
+class CustomRewardWrapper(gym.Wrapper):
+    """Replace the env's built-in reward with our custom compute_reward().
+
+    This wraps step() so the custom reward is used during TRAINING, not just
+    evaluation.  Works with SubprocVecEnv because each subprocess gets its
+    own wrapper instance with its own reward_fn.
+    """
+
+    def __init__(self, env: gym.Env, reward_fn):
+        super().__init__(env)
+        self.reward_fn = reward_fn
+        self._last_action = np.zeros(env.action_space.shape, dtype=np.float32)
+
+    def step(self, action):
+        obs, _original_reward, terminated, truncated, info = self.env.step(action)
+        self._last_action = action
+
+        # Convert flat obs -> dict format expected by compute_reward
+        obs_dict = mujoco_obs_to_dict(obs)
+        obs_dict["actions"] = torch.as_tensor(
+            action, dtype=torch.float32
+        ).unsqueeze(0) if action.ndim == 1 else torch.as_tensor(
+            action, dtype=torch.float32
+        )
+
+        reward_tensor, components = self.reward_fn(obs_dict)
+        custom_reward = float(reward_tensor.item())
+
+        # Store components in info for debugging / logging
+        info["reward_components"] = {
+            k: float(v.item()) for k, v in components.items()
+        }
+        info["original_reward"] = _original_reward
+
+        return obs, custom_reward, terminated, truncated, info
+
 # ── Config ────────────────────────────────────────────────────────────────
 def load_cfg():
     with open(os.path.join(ROOT, "config.yaml")) as f:
@@ -95,7 +132,8 @@ class TimeBudgetCallback(BaseCallback):
 
 # ── Evaluation ────────────────────────────────────────────────────────────
 def evaluate(model, reward_fn, num_episodes=20):
-    env = gym.make("Humanoid-v5")
+    base_env = gym.make("Humanoid-v5")
+    env = CustomRewardWrapper(base_env, reward_fn)
     ep_returns, ep_lengths = [], []
     all_comps: dict[str, list[float]] = {}
 
@@ -108,16 +146,13 @@ def evaluate(model, reward_fn, num_episodes=20):
 
         while not done:
             action, _ = model.predict(obs, deterministic=True)
-            obs, _, terminated, truncated, _ = env.step(action)
+            obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
             ep_len += 1
 
-            obs_dict = mujoco_obs_to_dict(obs)
-            obs_dict["actions"] = torch.as_tensor(action, dtype=torch.float32).unsqueeze(0)
-            rew_t, comps = reward_fn(obs_dict)
-            ep_ret += rew_t.item()
-            for k, v in comps.items():
-                ep_comps.setdefault(k, []).append(v.item())
+            ep_ret += reward
+            for k, v in info.get("reward_components", {}).items():
+                ep_comps.setdefault(k, []).append(v)
 
         ep_returns.append(ep_ret)
         ep_lengths.append(ep_len)
@@ -145,7 +180,26 @@ def main():
         print(f"ERROR: Failed to load reward.py: {e}", file=sys.stderr)
         sys.exit(1)
 
-    make_env = lambda seed: (lambda: (lambda e: (e.reset(seed=seed), e)[-1])(gym.make("Humanoid-v5")))
+    def make_env(seed, reward_root=ROOT):
+        """Factory that returns a callable for SubprocVecEnv.
+
+        Each subprocess loads its own copy of reward.py so there are no
+        pickling issues with SubprocVecEnv.
+        """
+        def _init():
+            # Load reward function inside the subprocess
+            _spec = importlib.util.spec_from_file_location(
+                "reward_mod", os.path.join(reward_root, "reward.py"))
+            _mod = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)
+            _reward_fn = _mod.compute_reward
+
+            env = gym.make("Humanoid-v5")
+            env = CustomRewardWrapper(env, _reward_fn)
+            env.reset(seed=seed)
+            return env
+        return _init
+
     env = (SubprocVecEnv if num_envs > 1 else DummyVecEnv)(
         [make_env(42 + i) for i in range(num_envs)])
     device_str = t.get("device", "cpu")
