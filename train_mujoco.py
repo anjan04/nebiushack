@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fallback PPO training using MuJoCo Ant-v5 + SB3. Drop-in for train.py.
+"""Fallback PPO training using MuJoCo Humanoid-v5 + SB3. Drop-in for train.py.
 Install:  pip install "gymnasium[mujoco]" stable-baselines3
 Usage:    python train_mujoco.py [--time_budget=180] [--num_envs=16]
 """
@@ -24,9 +24,9 @@ def load_cfg():
     for attr, key in [("time_budget","time_budget_seconds"),("num_envs","num_envs"),("device","device")]:
         if getattr(args, attr) is not None:
             t[key] = getattr(args, attr)
-    # MuJoCo can't run 4096 envs — default to 16 for CPU
+    # MuJoCo can't run 4096 envs — default to 8 for CPU
     if t["num_envs"] > 64:
-        t["num_envs"] = 16
+        t["num_envs"] = 8
     return cfg
 
 # ── Reward loader ─────────────────────────────────────────────────────────
@@ -36,25 +36,42 @@ def load_reward_fn():
     spec.loader.exec_module(mod)
     return mod.compute_reward
 
-# ── Map MuJoCo Ant-v5 obs to our obs dict format ─────────────────────────
+# ── Map MuJoCo Humanoid-v5 obs to our obs dict format ────────────────────
 def mujoco_obs_to_dict(obs: np.ndarray) -> dict:
-    """Convert Ant-v5 flat obs (27-dim) to program.md obs dict (N, ...).
-    Layout: qpos[2:] = z(1)+quat(4)+joints(8), qvel = lin(3)+ang(3)+joints(8)
+    """Convert Humanoid-v5 flat obs to program.md obs dict (N, ...).
+    Humanoid-v5 obs (348-dim when include_cinert etc. enabled, 45-dim minimal):
+      qpos[2:] = z(1) + quat(4) + joints(21)
+      qvel[:] = lin_vel(3) + ang_vel(3) + joint_vel(21)
+      cinert, cvel, qfrc_actuator, cfrc_ext (optional)
+    We use the default obs which is 67-dim:
+      qpos (24) + qvel (23) + cinert (0) + cvel (0) + qfrc (0) + cfrc (0)
+    Actually Humanoid-v5 default obs = 348-dim. We extract what we need.
     """
     if obs.ndim == 1:
         obs = obs[np.newaxis, :]
     n = obs.shape[0]
+    dim = obs.shape[1]
     t = lambda x: torch.as_tensor(x, dtype=torch.float32)
 
+    # Humanoid qpos layout: [0]=z, [1:5]=quat, [5:26]=joint_pos (21 joints)
+    # Humanoid qvel layout: [0:3]=lin_vel, [3:6]=ang_vel, [6:27]=joint_vel (21 joints)
+    # In obs vector: first 24 values are qpos[2:] (excluding x,y), next 23 are qvel
+    z_pos = obs[:, 0:1] if dim >= 1 else np.zeros((n, 1))
+    quat = obs[:, 1:5] if dim >= 5 else np.ones((n, 4)) * 0.25
+    joint_pos = obs[:, 5:26] if dim >= 26 else np.zeros((n, 21))
+    lin_vel = obs[:, 24:27] if dim >= 27 else np.zeros((n, 3))
+    ang_vel = obs[:, 27:30] if dim >= 30 else np.zeros((n, 3))
+    joint_vel = obs[:, 30:51] if dim >= 51 else np.zeros((n, 21))
+
     return {
-        "root_pos": t(np.concatenate([np.zeros((n, 2)), obs[:, 0:1]], axis=-1)),
-        "root_quat": t(obs[:, 1:5]),
-        "root_lin_vel": t(obs[:, 13:16]),
-        "root_ang_vel": t(obs[:, 16:19]),
-        "joint_pos": t(obs[:, 5:13]),
-        "joint_vel": t(obs[:, 19:27]),
-        "contact_forces": t(np.zeros((n, 4, 3))),
-        "actions": t(np.zeros((n, 8))),
+        "root_pos": t(np.concatenate([np.zeros((n, 2)), z_pos], axis=-1)),
+        "root_quat": t(quat),
+        "root_lin_vel": t(lin_vel),
+        "root_ang_vel": t(ang_vel),
+        "joint_pos": t(joint_pos),
+        "joint_vel": t(joint_vel),
+        "contact_forces": t(np.zeros((n, 6, 3))),  # 6 body contacts for humanoid
+        "actions": t(np.zeros((n, 17))),  # 17 actuators
         "gravity_vec": t(np.tile([0., 0., -1.], (n, 1))),
         "commands": t(np.zeros((n, 3))),
     }
@@ -77,8 +94,8 @@ class TimeBudgetCallback(BaseCallback):
         return True
 
 # ── Evaluation ────────────────────────────────────────────────────────────
-def evaluate(model, reward_fn, num_episodes=50):
-    env = gym.make("Ant-v5")
+def evaluate(model, reward_fn, num_episodes=20):
+    env = gym.make("Humanoid-v5")
     ep_returns, ep_lengths = [], []
     all_comps: dict[str, list[float]] = {}
 
@@ -128,7 +145,7 @@ def main():
         print(f"ERROR: Failed to load reward.py: {e}", file=sys.stderr)
         sys.exit(1)
 
-    make_env = lambda seed: (lambda: (lambda e: (e.reset(seed=seed), e)[-1])(gym.make("Ant-v5")))
+    make_env = lambda seed: (lambda: (lambda e: (e.reset(seed=seed), e)[-1])(gym.make("Humanoid-v5")))
     env = (SubprocVecEnv if num_envs > 1 else DummyVecEnv)(
         [make_env(42 + i) for i in range(num_envs)])
     device_str = t.get("device", "cpu")
@@ -157,7 +174,7 @@ def main():
     fps = int(total_steps / max(elapsed, 1e-6))
 
     # Evaluate
-    n_eval = cfg["env"].get("eval_episodes", 50)
+    n_eval = cfg["env"].get("eval_episodes", 20)
     metrics, comp_means = evaluate(model, reward_fn, num_episodes=n_eval)
     metrics["fps"] = fps
 

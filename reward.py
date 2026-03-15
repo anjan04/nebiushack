@@ -3,10 +3,10 @@ import torch
 
 
 def compute_reward(obs: dict) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-    """Baseline reward function for Ant locomotion.
+    """Baseline reward function for Humanoid locomotion.
 
     Simple initial reward: forward velocity + survival bonus - energy penalty.
-    Intended as a starting point for iterative improvement.
+    Intended as a starting point for iterative improvement by the AI agent.
     """
     # Primary objective: reward forward velocity (x-axis)
     forward_vel = obs["root_lin_vel"][:, 0]

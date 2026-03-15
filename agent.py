@@ -79,7 +79,8 @@ def call_llm(client, cfg: dict, messages: list[dict]) -> str:
                 temperature=cfg["llm"]["temperature"],
                 max_tokens=cfg["llm"]["max_tokens"],
             )
-            return r.choices[0].message.content
+            content = r.choices[0].message.content or ""
+            return content
         except Exception as e:
             wait = 2 ** (i + 1)
             print(f"[llm] attempt {i+1}/3 failed: {e}  (retry in {wait}s)")
@@ -93,7 +94,7 @@ def call_llm(client, cfg: dict, messages: list[dict]) -> str:
                             temperature=cfg["llm"]["temperature"],
                             max_tokens=cfg["llm"]["max_tokens"],
                         )
-                        return r.choices[0].message.content
+                        return r.choices[0].message.content or ""
                     except Exception as e2:
                         raise RuntimeError(f"LLM failed (fallback): {e2}") from e2
                 raise RuntimeError(f"LLM failed after 3 retries: {e}") from e
@@ -101,6 +102,8 @@ def call_llm(client, cfg: dict, messages: list[dict]) -> str:
     return ""
 
 def extract_code(response: str) -> str | None:
+    if not response:
+        return None
     # Find all python code blocks (case-insensitive language marker)
     blocks = re.findall(r"```[Pp]ython\s*\n(.*?)```", response, re.DOTALL)
     if not blocks:
