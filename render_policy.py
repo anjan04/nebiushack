@@ -70,7 +70,13 @@ def main():
 
     # --- Load agent ---
     print(f"[render_policy] Loading agent from {args.path} ...")
-    agent_state = PPOJax.load_agent(args.path)
+    ckpt_path = args.path
+    # If path is a directory, look for the .pkl file inside
+    if os.path.isdir(ckpt_path):
+        pkl = os.path.join(ckpt_path, "PPOJax_saved.pkl")
+        if os.path.isfile(pkl):
+            ckpt_path = pkl
+    agent_state = PPOJax.load_agent(ckpt_path)
 
     # --- Build a minimal agent config matching training ---
     train_cfg = cfg.get("training", {})
