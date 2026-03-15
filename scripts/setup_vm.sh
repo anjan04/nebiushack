@@ -27,7 +27,7 @@
 #
 # =============================================================================
 
-set -euo pipefail
+set -eo pipefail
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -65,12 +65,14 @@ log_header()  { echo -e "\n${BOLD}=== $* ===${NC}" | tee -a "$LOGFILE"; }
 # ---------------------------------------------------------------------------
 cleanup() {
     local exit_code=$?
+    # Remove leftover verification temp log if it exists
+    rm -f "/tmp/autorobot_ant_verify_$$.log"
     if [ $exit_code -ne 0 ]; then
         log_fail "Setup did not complete successfully (exit code $exit_code)."
         log_info "Review the log at $LOGFILE for details."
     fi
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 # ---------------------------------------------------------------------------
 # Summary tracking
@@ -191,6 +193,13 @@ if [ "$ISAAC_GYM_INSTALLED" = false ]; then
     if [ ! -d "$ISAAC_GYM_DIR" ]; then
         log_info "Extracting Isaac Gym tarball..."
         tar -xzf "$ISAAC_GYM_TARBALL" -C "$HOME" >> "$LOGFILE" 2>&1
+        if [ ! -d "$ISAAC_GYM_DIR/python" ]; then
+            log_fail "Tarball extracted but $ISAAC_GYM_DIR/python not found."
+            log_info "The tarball may have a different top-level directory name."
+            log_info "Expected directory structure: $ISAAC_GYM_DIR/python/"
+            log_info "Check contents with: tar -tzf $ISAAC_GYM_TARBALL | head -5"
+            exit 1
+        fi
         log_success "Extracted to $ISAAC_GYM_DIR"
     else
         log_skip "Isaac Gym directory already exists at $ISAAC_GYM_DIR"
@@ -291,11 +300,11 @@ for dep in "${PROJECT_DEPS[@]}"; do
     fi
 done
 
-if [ ${#DEPS_INSTALLED[@]} -gt 0 ]; then
+if [ "${#DEPS_INSTALLED[@]}" -gt 0 ]; then
     log_success "Installed: ${DEPS_INSTALLED[*]}"
     summary_add "Python deps installed: ${DEPS_INSTALLED[*]}"
 fi
-if [ ${#DEPS_SKIPPED[@]} -gt 0 ]; then
+if [ "${#DEPS_SKIPPED[@]}" -gt 0 ]; then
     log_skip "Already present: ${DEPS_SKIPPED[*]}"
 fi
 
@@ -331,7 +340,6 @@ set +e  # temporarily allow failure so we can capture the result
         task=Ant \
         headless=True \
         max_iterations="$ANT_VERIFY_ITERATIONS" \
-        graphics_device_id=-1 \
         2>&1
 ) > "$VERIFY_LOG" 2>&1
 VERIFY_EXIT_CODE=$?
@@ -383,7 +391,7 @@ echo "" | tee -a "$LOGFILE"
 
 echo -e "${BOLD}Actions taken:${NC}" | tee -a "$LOGFILE"
 for line in "${SUMMARY_LINES[@]}"; do
-    echo -e "  - $line" | tee -a "$LOGFILE"
+    printf '  - %s\n' "$line" | tee -a "$LOGFILE"
 done
 
 echo "" | tee -a "$LOGFILE"

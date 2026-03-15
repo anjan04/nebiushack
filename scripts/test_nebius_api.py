@@ -13,9 +13,27 @@ import yaml
 from openai import OpenAI
 
 
-def load_config(path="config.yaml"):
-    with open(path) as f:
-        return yaml.safe_load(f)
+def load_config(path=None):
+    if path is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config.yaml")
+    if not os.path.isfile(path):
+        print(f"FAIL: config file not found: {path}")
+        sys.exit(1)
+    try:
+        with open(path) as f:
+            cfg = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        print(f"FAIL: could not parse config file: {e}")
+        sys.exit(1)
+    if not isinstance(cfg, dict) or "llm" not in cfg:
+        print("FAIL: config.yaml is missing the required 'llm' section")
+        sys.exit(1)
+    llm = cfg["llm"]
+    for key in ("base_url", "api_key_env", "model", "fallback_model"):
+        if key not in llm:
+            print(f"FAIL: config.yaml llm section is missing required key '{key}'")
+            sys.exit(1)
+    return cfg
 
 
 def make_client(cfg):
@@ -97,7 +115,7 @@ def test_reward_generation(client, model):
 
 
 def main():
-    cfg = load_config(os.path.join(os.path.dirname(__file__), "..", "config.yaml"))
+    cfg = load_config()
     client = make_client(cfg)
 
     results = []
