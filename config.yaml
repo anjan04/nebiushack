@@ -11,6 +11,7 @@ llm:
 
 # Training settings
 training:
+  script: "train_mujoco.py"  # "train.py" for Isaac Gym, "train_mujoco.py" for MuJoCo fallback
   time_budget_seconds: 180  # 3 minutes per experiment
   num_envs: 4096
   device: "cuda:0"
