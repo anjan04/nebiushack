@@ -19,7 +19,8 @@ def load_cfg():
     p.add_argument("--time_budget", type=int, default=None)
     p.add_argument("--num_envs", type=int, default=None)
     p.add_argument("--device", default=None)
-    p.add_argument("--headless", type=bool, default=None)
+    p.add_argument("--headless", default=None,
+                       type=lambda x: x.lower() in ("true","1","yes"))
     p.add_argument("--max_iterations", type=int, default=None)
     args = p.parse_args()
     t = cfg["training"]
@@ -78,7 +79,7 @@ def create_env(cfg):
     return env, hcfg
 
 def patch_reward(env, reward_fn):
-    def custom_compute():
+    def custom_compute(*args, **kwargs):
         rew, comps = reward_fn(build_obs_dict(env))
         env.rew_buf[:] = rew
         env._reward_components = comps
@@ -104,7 +105,9 @@ def train_with_budget(env, hcfg, cfg):
 
     runner = Runner()
     runner.load(rlg)
-    agent = runner.create_agent()
+    runner.reset()
+    agent = runner.algo_factory.create(
+        runner.algo_name, base_name='run', params=runner.params)
 
     t0 = time.time()
     orig_epoch = agent.train_epoch
@@ -134,14 +137,28 @@ def evaluate(env, reward_fn, agent, num_episodes=50):
     # Use trained policy if available, else random
     has_policy = hasattr(agent, "model") and agent.model is not None
     obs_dict = env.reset()
+    rnn_states = None
     if has_policy:
-        agent.init_rnn()
+        agent.model.eval()
+        is_rnn = agent.model.is_rnn() if hasattr(agent.model, "is_rnn") else False
+        if is_rnn:
+            rnn_states = [torch.zeros_like(s).to(dev)
+                          for s in agent.model.get_default_rnn_state()]
 
     while done_count < num_episodes:
         with torch.no_grad():
             if has_policy:
                 obs_flat = env.obs_buf
-                action = agent.get_action(obs_flat, is_determenistic=True)
+                input_dict = {
+                    "is_train": False,
+                    "prev_actions": None,
+                    "obs": obs_flat,
+                    "rnn_states": rnn_states,
+                }
+                res = agent.model(input_dict)
+                action = res["mus"]  # deterministic (mean) action
+                if is_rnn:
+                    rnn_states = res["rnn_states"]
             else:
                 action = torch.clamp(torch.randn(env.num_envs, env.num_actions, device=dev), -1, 1)
             obs_dict, rew, dones, infos = env.step(action)

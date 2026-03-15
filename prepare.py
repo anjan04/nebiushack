@@ -85,6 +85,13 @@ class AntEnvWrapper:
     def _extract_obs(self) -> dict[str, torch.Tensor]:
         env = self.env
         rs = env.root_states  # (N, 13): pos(3) + quat(4) + lin_vel(3) + ang_vel(3)
+        # Contact forces: prefer feet_indices, fall back to vec_sensor_tensor or zeros
+        if hasattr(env, "feet_indices"):
+            cf = env.contact_forces[:, env.feet_indices, :]
+        elif hasattr(env, "vec_sensor_tensor"):
+            cf = env.vec_sensor_tensor.view(self.num_envs, -1, 3)
+        else:
+            cf = torch.zeros(self.num_envs, 4, 3, device=self.device)
         return {
             "root_pos":       rs[:, 0:3],
             "root_quat":      rs[:, 3:7],
@@ -92,7 +99,7 @@ class AntEnvWrapper:
             "root_ang_vel":   rs[:, 10:13],
             "joint_pos":      env.dof_pos,
             "joint_vel":      env.dof_vel,
-            "contact_forces": env.contact_forces[:, env.feet_indices, :],
+            "contact_forces": cf,
             "commands":       self._get_commands(),
             "actions":        self._last_actions,
             "gravity_vec":    self._get_gravity_vec(),
@@ -106,6 +113,8 @@ class AntEnvWrapper:
         return cmds
 
     def _get_gravity_vec(self) -> torch.Tensor:
+        if hasattr(self.env, "gravity_vec"):
+            return self.env.gravity_vec
         if hasattr(self.env, "projected_gravity"):
             return self.env.projected_gravity
         from isaacgym.torch_utils import quat_rotate_inverse

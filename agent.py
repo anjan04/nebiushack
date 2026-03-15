@@ -7,6 +7,7 @@ on the primary_score metric.  Every decision is recorded as a git commit.
 
 Usage:  python agent.py
 """
+from __future__ import annotations
 import hashlib, json, os, re, subprocess, sys, time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -100,8 +101,20 @@ def call_llm(client, cfg: dict, messages: list[dict]) -> str:
     return ""
 
 def extract_code(response: str) -> str | None:
-    m = re.search(r"```python\s*\n(.*?)```", response, re.DOTALL)
-    return m.group(1).strip() if m else None
+    # Find all python code blocks (case-insensitive language marker)
+    blocks = re.findall(r"```[Pp]ython\s*\n(.*?)```", response, re.DOTALL)
+    if not blocks:
+        # Fallback: try bare ``` blocks
+        blocks = re.findall(r"```\s*\n(.*?)```", response, re.DOTALL)
+    if not blocks:
+        return None
+    # Prefer the block containing compute_reward; fall back to the last block
+    for b in blocks:
+        if "def compute_reward" in b:
+            return b.strip()
+    return blocks[-1].strip()
+
+_ALLOWED_IMPORTS = {"torch", "math"}
 
 def validate_code(code: str) -> str | None:
     if "def compute_reward" not in code:
@@ -109,11 +122,20 @@ def validate_code(code: str) -> str | None:
     for line in code.splitlines():
         s = line.strip()
         if s.startswith("import ") or s.startswith("from "):
-            for tok in s.replace(",", " ").split():
-                if tok in ("import", "from", "as"):
-                    continue
-                if tok.startswith("torch") or tok.startswith("math"):
-                    continue
+            # Extract the top-level module name(s) being imported
+            if s.startswith("from "):
+                # "from X import ..." -> check X
+                mod = s.split()[1].split(".")[0]
+                if mod not in _ALLOWED_IMPORTS:
+                    return f"Disallowed import: '{mod}'. Only torch and math are allowed."
+            else:
+                # "import X, Y, Z" or "import X.sub"
+                for tok in s.replace(",", " ").split():
+                    if tok in ("import", "as") or tok.startswith("as"):
+                        continue
+                    mod = tok.split(".")[0]
+                    if mod and mod not in _ALLOWED_IMPORTS:
+                        return f"Disallowed import: '{mod}'. Only torch and math are allowed."
     return None
 
 # ── training ─────────────────────────────────────────────────────────────────
@@ -270,7 +292,7 @@ def main() -> None:
                 break
             print(f"  [train] failed, asking LLM to fix...")
             fix_msgs = build_prompt(system_prompt, REWARD_PATH.read_text(),
-                                    None, None, train_err, False, hist)
+                                    None, None, train_err[:3000], False, hist)
             try:
                 fix_resp = call_llm(client, cfg, fix_msgs)
             except RuntimeError:
@@ -312,7 +334,8 @@ def main() -> None:
             print("  !!! ERROR: no metrics, reverted")
             if cfg["git"]["auto_commit"]:
                 git_commit_reward(f"exp-{it}: error (reverted)")
-            last_error = train_err or "No parseable METRICS line."
+            err_text = train_err or "No parseable METRICS line."
+            last_error = err_text[:3000]  # truncate to avoid filling LLM context
 
         last_metrics = metrics; last_components = components
 
