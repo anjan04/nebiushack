@@ -11,18 +11,18 @@ llm:
 
 # Training settings
 training:
-  script: "train_mujoco.py"  # "train.py" for Isaac Gym, "train_mujoco.py" for MuJoCo fallback
+  script: "train_loco.py"  # LocoMuJoCo with LAFAN1 mocap tracking
   time_budget_seconds: 180  # 3 minutes per experiment
-  num_envs: 4096
+  num_envs: 2048
   device: "cuda:0"
   headless: true
   max_iterations: 3000  # PPO iterations (within time budget)
 
 # Environment
 env:
-  name: "Humanoid"
-  task_module: "gymnasium.envs.mujoco.humanoid_v5"
-  primary_metric: "primary_score"  # forward velocity
+  name: "UnitreeH1"
+  mocap: "walk1_subject1"
+  primary_metric: "primary_score"
   eval_episodes: 20
 
 # Agent loop settings
