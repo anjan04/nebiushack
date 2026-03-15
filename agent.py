@@ -146,9 +146,11 @@ def validate_weights(weights: dict) -> str | None:
 def run_training(cfg: dict) -> tuple[dict | None, dict | None, str]:
     timeout = cfg["training"]["time_budget_seconds"] + 120  # extra buffer for JIT + LAFAN1 retargeting
     try:
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
         r = subprocess.run(
             [sys.executable, str(REPO / cfg["training"].get("script", "train.py"))],
-            cwd=REPO, capture_output=True, text=True, timeout=timeout,
+            cwd=REPO, capture_output=True, text=True, timeout=timeout, env=env,
         )
         out = r.stdout + "\n" + r.stderr
         if r.returncode != 0:
