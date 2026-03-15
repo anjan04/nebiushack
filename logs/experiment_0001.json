@@ -1,0 +1,35 @@
+{
+  "iteration": 1,
+  "timestamp": "2026-03-15T22:30:17.003817+00:00",
+  "duration_s": 188.482233,
+  "decision": "improvement",
+  "score": 55.1997,
+  "best_score": 55.1997,
+  "metrics": {
+    "primary_score": 55.1997,
+    "episode_return": 55.2,
+    "episode_length": 128.0,
+    "fps": 224961.0
+  },
+  "components": {
+    "qpos_w_exp": 10.0,
+    "qvel_w_exp": 2.0,
+    "rpos_w_exp": 80.0,
+    "rquat_w_exp": 8.0,
+    "rvel_w_exp": 0.1,
+    "qpos_w_sum": 0.1,
+    "qvel_w_sum": 0.0,
+    "rpos_w_sum": 0.5,
+    "rquat_w_sum": 0.3,
+    "rvel_w_sum": 0.0,
+    "action_out_of_bounds_coeff": 0.01,
+    "joint_acc_coeff": 0.0001,
+    "joint_torque_coeff": 0.0,
+    "action_rate_coeff": 0.001,
+    "best_return": 55.9709,
+    "train_time": "164s"
+  },
+  "reward_weights": "{\n  \"qpos_w_exp\": 10.0,\n  \"qvel_w_exp\": 2.0,\n  \"rpos_w_exp\": 80.0,\n  \"rquat_w_exp\": 8.0,\n  \"rvel_w_exp\": 0.1,\n  \"qpos_w_sum\": 0.1,\n  \"qvel_w_sum\": 0.0,\n  \"rpos_w_sum\": 0.5,\n  \"rquat_w_sum\": 0.3,\n  \"rvel_w_sum\": 0.0,\n  \"action_out_of_bounds_coeff\": 0.01,\n  \"joint_acc_coeff\": 0.0001,\n  \"joint_torque_coeff\": 0.0,\n  \"action_rate_coeff\": 0.001\n}\n",
+  "llm_response": "```json\n{\n    \"qpos_w_exp\": 10.0,\n    \"qvel_w_exp\": 2.0,\n    \"rpos_w_exp\": 80.0,\n    \"rquat_w_exp\": 8.0,\n    \"rvel_w_exp\": 0.1,\n    \"qpos_w_sum\": 0.1,\n    \"qvel_w_sum\": 0.0,\n    \"rpos_w_sum\": 0.5,\n    \"rquat_w_sum\": 0.3,\n    \"rvel_w_sum\": 0.0,\n    \"action_out_of_bounds_coeff\": 0.01,\n    \"joint_acc_coeff\": 0.0001,\n    \"joint_torque_coeff\": 0.0,\n    \"action_rate_coeff\": 0.001\n}\n```",
+  "train_stdout": "[train_loco] Budget=180s  Envs=2048  Backend=gpu  Mocap=walk1_subject1\n[train_loco] Reward weights: {\n  \"qpos_w_exp\": 10.0,\n  \"qvel_w_exp\": 2.0,\n  \"rpos_w_exp\": 80.0,\n  \"rquat_w_exp\": 8.0,\n  \"rvel_w_exp\": 0.1,\n  \"qpos_w_sum\": 0.1,\n  \"qvel_w_sum\": 0.0,\n  \"rpos_w_sum\": 0.5,\n  \"rquat_w_sum\": 0.3,\n  \"rvel_w_sum\": 0.0,\n  \"action_out_of_bounds_coeff\": 0.01,\n  \"joint_acc_coeff\": 0.0001,\n  \"joint_torque_coeff\": 0.0,\n  \"action_rate_coeff\": 0.001\n}\n[LocoMuJoCo's LAFAN1 Retargeting Pipeline] INFO: Using Mujoco's kinematics to calculate other model-specific entities ...\n[LocoMuJoCo's LAFAN1 Retargeting Pipeline] INFO: Trajectory data loaded!\n[train_loco] JIT-compiling and training...\nMETRICS: primary_score=55.1997 episode_return=55.2 episode_length=128 fps=224961\nCOMPONENTS: qpos_w_exp=10.0000 qvel_w_exp=2.0000 rpos_w_exp=80.0000 rquat_w_exp=8.0000 rvel_w_exp=0.1000 qpos_w_sum=0.1000 qvel_w_sum=0.0000 rpos_w_sum=0.5000 rquat_w_sum=0.3000 rvel_w_sum=0.0000 action_out_of_bounds_coeff=0.0100 joint_acc_coeff=0.0001 joint_torque_coeff=0.0000 action_rate_coeff=0.0010 best_return=55.9709 train_time=164s\n[train_loco] Done. 36,864,000 steps in 163.9s (224,961 fps)\n"
+}
