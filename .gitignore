@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.eggs/
+*.egg-info/
+*.egg
+dist/
+build/
+eggs/
+sdist/
+develop-eggs/
+.installed.cfg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+conda/
+.conda/
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+*~
+
+# Isaac Gym / RL
+isaacgym/
+logs/
+runs/
+outputs/
+
+# Project specific
+results/
+results/*.mp4
+results/*.png
+*.mp4
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment and secrets
+.env
+*.key
+
+# Checkpoints and models
+*.pth
+*.pt
+checkpoints/
+
+# Tensorboard
+tb_logs/
+events.out.*

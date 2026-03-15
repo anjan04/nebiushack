@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "autorobot"
+version = "0.1.0"
+description = "AI agent that autonomously discovers robot locomotion behaviors — zero human reward engineering."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+
+dependencies = [
+    "openai>=1.0",
+    "pyyaml",
+    "matplotlib",
+    "gitpython",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "ruff",
+]
+
+# NOTE: The following packages must be installed separately and are NOT
+# available on PyPI. See docs/SETUP.md for installation instructions:
+#   - isaacgym        (NVIDIA Isaac Gym Preview 4)
+#   - isaacgymenvs    (Isaac Gym environments)
+#   - rl_games        (RL algorithm library used for PPO training)
