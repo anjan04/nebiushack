@@ -9,17 +9,17 @@ discover SONIC-style rewards with 1 walking clip on 1 GPU."
 
 ## Phase 1: Install & Verify (~15 min)
 
-- [ ] **T1.1** Install JAX with CUDA on VM
+- [x] **T1.1** Install JAX with CUDA on VM
   ```bash
   source ~/autorobot_venv/bin/activate
   pip install -U "jax[cuda12]"
   python -c "import jax; print(jax.default_backend())"  # should print: gpu
   ```
-- [ ] **T1.2** Install LocoMuJoCo
+- [x] **T1.2** Install LocoMuJoCo
   ```bash
   pip install loco-mujoco
   ```
-- [ ] **T1.3** Verify LAFAN1 data loads (auto-downloads from HuggingFace)
+- [x] **T1.3** Verify LAFAN1 data loads (auto-downloads from HuggingFace)
   ```python
   from loco_mujoco.task_factories import ImitationFactory, LAFAN1DatasetConf
   env = ImitationFactory.make(
@@ -29,11 +29,11 @@ discover SONIC-style rewards with 1 walking clip on 1 GPU."
   env.play_trajectory(n_episodes=1, n_steps_per_episode=100)
   print("LAFAN1 walking data loaded successfully")
   ```
-- [ ] **T1.4** Install remaining deps
+- [x] **T1.4** Install remaining deps
   ```bash
   pip install openai pyyaml matplotlib gitpython
   ```
-- [ ] **T1.5** Verify Nebius Token Factory API (already working — DeepSeek-V3)
+- [x] **T1.5** Verify Nebius Token Factory API (already working — DeepSeek-V3)
 
 ## Phase 2: Understand LocoMuJoCo & Write Training Script (~30 min)
 
@@ -141,3 +141,7 @@ T1.5 (API) ───────────────────────
 If LocoMuJoCo install fails on Python 3.12 or JAX has issues:
 1. Use MuJoCo Playground (`pip install playground`) — similar speed, different API
 2. Fall back to current SB3 + MuJoCo (already working, just slow)
+
+
+
+
