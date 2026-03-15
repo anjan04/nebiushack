@@ -148,6 +148,8 @@ def run_training(cfg: dict) -> tuple[dict | None, dict | None, str]:
     try:
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
+        env["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+        env["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.7"
         r = subprocess.run(
             [sys.executable, str(REPO / cfg["training"].get("script", "train.py"))],
             cwd=REPO, capture_output=True, text=True, timeout=timeout, env=env,
