@@ -46,8 +46,7 @@ results/
 Thumbs.db
 desktop.ini
 
-# Environment and secrets
-.env
+# Secrets (API keys kept in .env for shared hackathon use)
 *.key
 
 # Checkpoints and models
