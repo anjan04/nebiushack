@@ -62,11 +62,36 @@ def compute_reward(obs: dict) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
 - Humanoid is MUCH harder than quadrupeds — balance is critical
 - Start with a strong upright/survival reward before optimizing velocity
 - If the humanoid falls immediately, the upright reward is too weak
-- `root_pos[:, 2]` is the height — healthy range is 1.0 to 2.0 meters
-- `root_quat[:, 3]` (w component) close to 1.0 means upright
 - Penalize sideways velocity (`root_lin_vel[:, 1]`) to keep it walking straight
 - Use `torch.clamp` to avoid NaN from extreme values
 - Small energy penalties matter — too large and it won't move at all
+
+### SONIC-Inspired Reward Engineering
+
+The SONIC paper (Stanford) provides empirically validated reward design principles for humanoid locomotion. Apply these insights for faster, more stable training:
+
+**1. Use exponential kernels instead of linear rewards.**
+SONIC demonstrates that `exp(-||error||^2 / temperature)` kernels produce far better learning signals than linear or clipped rewards. They saturate smoothly at the optimum and provide strong gradients when far from the target. Use this form for all tracking objectives (velocity, height, orientation).
+
+**2. Follow SONIC's proven weight hierarchy.**
+The relative magnitudes matter enormously. SONIC's validated weighting scheme:
+  - Forward velocity tracking: **weight 1.0** — the primary objective
+  - Height maintenance: **weight 1.0** — equally important to keep the robot from crouching or jumping
+  - Upright orientation: **weight 0.5** — critical but slightly lower so the robot can lean into its gait
+  - Action rate penalty: **weight -0.1** — small negative to encourage smoothness without killing exploration
+  - Joint limit penalty: **weight -10.0** — harsh penalty to keep joints within safe bounds (acts as a hard constraint via large weight)
+
+**3. Height tracking: maintain z-height between 1.0 and 2.0 meters.**
+`root_pos[:, 2]` is the height. SONIC tracks a target height (typically ~1.3m for humanoids) using `exp(-(z - z_target)^2 / temp)`. Reward the robot for staying in the [1.0, 2.0] range and penalize deviations outside it.
+
+**4. Quaternion upright check.**
+`root_quat[:, 3]` is the w-component of the root orientation quaternion. When w is near **1.0** the humanoid is upright; near **0.0** it has fallen or is sideways. SONIC uses `exp(-(1 - w)^2 / temp)` as the upright reward kernel. This is more informative than a binary alive/dead check.
+
+**5. Action rate penalty for smooth control.**
+Penalize `|action_t - action_{t-1}|` (i.e., `torch.sum((actions_current - actions_previous)**2, dim=-1)`). SONIC shows this is essential — without it the policy produces jittery, high-frequency torques that damage sim-to-real transfer. Keep the weight small (-0.1) so the robot still moves.
+
+**6. Contact penalty: penalize torso/head ground contacts.**
+Use `contact_forces` to detect when non-foot body parts (torso, head) are in contact with the ground. Penalize the magnitude of these forces. This teaches the robot that falling is costly without using a binary termination, giving the policy a chance to learn recovery behaviors.
 
 ## What You'll See After Each Experiment
 
