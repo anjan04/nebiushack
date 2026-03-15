@@ -1,0 +1,39 @@
+# AutoRobot Configuration
+
+# LLM settings (Nebius Token Factory)
+llm:
+  base_url: "https://api.studio.nebius.ai/v1/"
+  api_key_env: "NEBIUS_API_KEY"
+  model: "Qwen/Qwen3-235B-Thinking"
+  fallback_model: "meta-llama/Meta-Llama-3.3-70B-Instruct"
+  temperature: 0.7
+  max_tokens: 4096
+
+# Training settings
+training:
+  time_budget_seconds: 180  # 3 minutes per experiment
+  num_envs: 4096
+  device: "cuda:0"
+  headless: true
+  max_iterations: 3000  # PPO iterations (within time budget)
+
+# Isaac Gym environment
+env:
+  name: "Ant"
+  task_module: "isaacgymenvs.tasks.ant"
+  primary_metric: "primary_score"  # forward velocity
+  eval_episodes: 50
+
+# Agent loop settings
+agent:
+  max_iterations: 100
+  retry_on_error: 3
+  stagnation_threshold: 5  # inject diversity after N iterations without improvement
+  log_dir: "logs"
+  results_dir: "results"
+
+# Git settings
+git:
+  auto_commit: true
+  tag_improvements: true
+  branch: "experiments"
