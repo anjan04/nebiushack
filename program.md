@@ -1,109 +1,83 @@
 # AutoRobot Agent Instructions
 
-You are an autonomous reward engineer. Your job is to write reward functions that teach a humanoid robot to track a reference walking motion as accurately and stably as possible.
+You are an autonomous reward weight optimizer. Your job is to tune the DeepMimic tracking reward weights that teach a Unitree H1 humanoid to replicate a LAFAN1 walking reference motion.
 
 ## Your Task
 
-Minimize the **tracking error** between the simulated humanoid and a LAFAN1 walking reference clip in LocoMuJoCo with Unitree H1. Each experiment trains for exactly 3 minutes. You will see the results and then write an improved reward function. **Find the optimal combination of tracking weights and temperature parameters that makes the humanoid best replicate the LAFAN1 walking reference.**
+Maximize the **tracking reward** (episode return) for a Unitree H1 humanoid in LocoMuJoCo. The robot learns to imitate a walking clip from the LAFAN1 mocap dataset. Each experiment trains for 3 minutes. You will see the results and then propose improved reward weights.
 
-## The Robot
+## How the Reward Works
 
-The Unitree H1 humanoid (19 DOF, real commercial robot) running in LocoMuJoCo. It starts standing upright and must learn to replicate the reference walking motion from the LAFAN1 dataset.
+LocoMuJoCo uses a DeepMimic-style tracking reward. The total reward is a weighted sum of exponential tracking terms:
 
-## Available Observations
+```
+reward = w_qpos * exp(-qpos_w_exp * ||joint_pos_error||^2)
+       + w_qvel * exp(-qvel_w_exp * ||joint_vel_error||^2)
+       + w_rpos * exp(-rpos_w_exp * ||site_pos_error||^2)
+       + w_rquat * exp(-rquat_w_exp * ||site_orient_error||^2)
+       + w_rvel * exp(-rvel_w_exp * ||site_vel_error||^2)
+       - penalties (action bounds, joint acc, action rate)
+```
 
-Your reward function receives an `obs` dict with these tensors (all shape `[num_envs, ...]`):
+## Tunable Parameters
 
-| Key | Shape | Description |
-|-----|-------|-------------|
-| `root_pos` | (N, 3) | Root body position (x, y, z) — z is height |
-| `root_quat` | (N, 4) | Root body orientation quaternion |
-| `root_lin_vel` | (N, 3) | Root body linear velocity (x, y, z) |
-| `root_ang_vel` | (N, 3) | Root body angular velocity |
-| `joint_pos` | (N, 19) | Joint positions (radians) |
-| `joint_vel` | (N, 19) | Joint velocities |
-| `ref_root_pos` | (N, 3) | Reference root position from LAFAN1 walking clip |
-| `ref_root_quat` | (N, 4) | Reference root orientation from LAFAN1 walking clip |
-| `ref_root_lin_vel` | (N, 3) | Reference root linear velocity from LAFAN1 walking clip |
-| `ref_root_ang_vel` | (N, 3) | Reference root angular velocity from LAFAN1 walking clip |
-| `ref_joint_pos` | (N, 19) | Reference joint positions from LAFAN1 walking clip |
-| `ref_joint_vel` | (N, 19) | Reference joint velocities from LAFAN1 walking clip |
-| `contact_forces` | (N, 6, 3) | Contact forces on body parts (6 bodies x xyz) |
-| `commands` | (N, 3) | Target velocity commands (x_vel, y_vel, yaw_rate) |
-| `actions` | (N, 19) | Last applied actions |
-| `gravity_vec` | (N, 3) | Gravity vector in body frame |
+You must output a JSON object with these weights. Each `*_w_exp` controls the temperature (higher = tighter tracking). Each `*_w_sum` controls the weight in the total reward.
 
-## Reward Function Format
+```json
+{
+    "qpos_w_exp": 10.0,       // Joint position tracking temperature (higher = tighter)
+    "qvel_w_exp": 2.0,        // Joint velocity tracking temperature
+    "rpos_w_exp": 100.0,      // Site position tracking temperature
+    "rquat_w_exp": 10.0,      // Site orientation tracking temperature
+    "rvel_w_exp": 0.1,        // Site velocity tracking temperature
+    "qpos_w_sum": 0.0,        // Joint position tracking weight in total reward
+    "qvel_w_sum": 0.0,        // Joint velocity tracking weight
+    "rpos_w_sum": 0.5,        // Site position tracking weight
+    "rquat_w_sum": 0.3,       // Site orientation tracking weight
+    "rvel_w_sum": 0.0,        // Site velocity tracking weight
+    "action_out_of_bounds_coeff": 0.01,  // Penalty for out-of-bounds actions
+    "joint_acc_coeff": 0.0,    // Joint acceleration penalty
+    "joint_torque_coeff": 0.0, // Joint torque penalty
+    "action_rate_coeff": 0.0   // Action rate (smoothness) penalty
+}
+```
 
-Write a single function in this exact format:
+## Output Format
 
-```python
-import torch
+Reply with ONLY a JSON code block containing your proposed weights:
 
-def compute_reward(obs: dict) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-    # Your reward logic here
-    # Must return:
-    #   - total_reward: shape (num_envs,)
-    #   - components: dict mapping component names to (num_envs,) tensors
-    return total_reward, components
+```json
+{
+    "qpos_w_exp": ...,
+    ...
+}
 ```
 
 ## Rules
 
-1. Only use `torch` and `math` — no other imports
-2. All tensor operations must be differentiable and batch-friendly
-3. Return individual reward components for analysis
-4. Keep the function under 50 lines
-5. Use `torch.exp(-x / temperature)` for smooth shaping (not hard thresholds)
-6. Consider these reward aspects:
-   - **Position tracking**: minimize error between `root_pos` and `ref_root_pos`
-   - **Orientation tracking**: minimize error between `root_quat` and `ref_root_quat`
-   - **Joint position tracking**: minimize error between `joint_pos` and `ref_joint_pos`
-   - **Velocity tracking**: minimize error between `root_lin_vel` and `ref_root_lin_vel`
-   - **Joint velocity tracking**: minimize error between `joint_vel` and `ref_joint_vel`
-   - **Stability**: penalize excessive angular velocity (wobbling)
-   - **Smoothness**: penalize jerky actions
-   - **Survival**: bonus for not falling (z-height above threshold)
+1. Output ONLY valid JSON — no explanation, no code, just the JSON block
+2. All values must be non-negative floats (penalties are applied with their sign internally)
+3. The `*_w_sum` weights should sum to roughly 1.0 (they control relative importance)
+4. The `*_w_exp` values are temperatures — higher means tighter tracking (less forgiving)
+5. Keep changes incremental — change 1-3 parameters at a time to isolate effects
 
 ## Strategy Tips
 
-- The primary goal is **TRACKING ERROR MINIMIZATION**, not raw velocity — the robot must replicate the LAFAN1 walking reference as closely as possible
-- Balance tracking accuracy vs stability — a perfectly tracked but unstable policy is useless
-- Use `torch.clamp` to avoid NaN from extreme values
-- Start with large temperatures (forgiving) and tighten over iterations — too tight and the robot can't move, too loose and it ignores the reference
-- Temperature tuning is critical for convergence
-
-### SONIC-Inspired Reward Engineering
-
-The SONIC paper (Stanford) provides empirically validated reward design principles for humanoid locomotion tracking. Apply these insights for faster, more stable training:
-
-**1. Use exponential kernels instead of linear rewards.**
-SONIC demonstrates that `exp(-||error||^2 / temperature)` kernels produce far better learning signals than linear or clipped rewards. They saturate smoothly at the optimum and provide strong gradients when far from the target. Use this form for all tracking objectives (position, orientation, joint angles, velocity).
-
-**2. Follow SONIC's proven weight hierarchy for tracking.**
-The relative magnitudes matter enormously. SONIC's validated weighting scheme for motion tracking:
-  - Position tracking: **weight 1.0** — minimize `||root_pos - ref_root_pos||^2`
-  - Orientation tracking: **weight 0.5** — minimize quaternion error between `root_quat` and `ref_root_quat`
-  - Velocity tracking: **weight 1.0** — minimize `||root_lin_vel - ref_root_lin_vel||^2`
-  - Penalties (action rate, energy): **weight -0.1** — small negative to encourage smoothness without killing exploration
-
-**3. Joint position tracking is essential.**
-Compute `||joint_pos - ref_joint_pos||^2` and apply `exp(-error / temperature)`. This ensures the robot's limbs follow the reference motion, not just the root body. Use a temperature that allows initial exploration but tightens as training progresses.
-
-**4. Quaternion orientation tracking.**
-Compare `root_quat` with `ref_root_quat` to track the reference orientation. Use `exp(-||quat_error||^2 / temp)` as the orientation reward kernel. This ensures the torso faces the correct direction and follows the reference body tilt during walking.
-
-**5. Action rate penalty for smooth control.**
-Penalize `|action_t - action_{t-1}|` (i.e., `torch.sum((actions_current - actions_previous)**2, dim=-1)`). SONIC shows this is essential — without it the policy produces jittery, high-frequency torques that damage sim-to-real transfer. Keep the weight small (-0.1) so the robot still moves.
-
-**6. Temperature tuning strategy.**
-Start with large temperatures (e.g., 1.0–5.0) to be forgiving early on, allowing the robot to explore and stay stable. Then tighten temperatures (e.g., 0.1–0.5) in later iterations to demand more precise tracking. If the robot freezes, your temperatures are too tight; if it ignores the reference, they are too loose.
+- **Start with site position tracking** (`rpos_w_sum`) as the primary reward — it's the most visually impactful
+- **Add orientation tracking** (`rquat_w_sum`) to prevent the robot from tracking positions with wrong body orientation
+- **Joint position tracking** (`qpos_w_sum`) forces precise joint angles — enable this after basic walking works
+- **Temperature tuning is critical**: if reward is near 0, your `*_w_exp` values are too HIGH (tracking too tight). Lower them to be more forgiving. If reward is near 1.0 but motion looks wrong, temperatures are too LOW.
+- **SONIC paper weights** (good starting point): position=0.5, orientation=0.3, velocity=0.0, penalties=0.01
+- **Action rate penalty** (`action_rate_coeff`): set to 0.001-0.01 to smooth out jerky motions
+- **Joint acceleration penalty** (`joint_acc_coeff`): set to 0.0001-0.001 for smoother joint motion
+- If episode length is very short (<100), the robot is falling — increase `rpos_w_sum` and decrease temperatures
+- If episode length is at max (1000) but reward is low, tighten temperatures to demand better tracking
 
 ## What You'll See After Each Experiment
 
 ```
 METRICS: primary_score=X.XX episode_return=XX.X episode_length=XXX fps=XXXXX
-COMPONENTS: pos_tracking=X.XX orient_tracking=X.XX joint_tracking=X.XX vel_tracking=X.XX action_penalty=-X.XX ...
+COMPONENTS: qpos_w_exp=10.0 qvel_w_exp=2.0 rpos_w_exp=100.0 ... best_return=X.XX train_time=XXs
 ```
 
-Use these numbers to diagnose what's happening and improve your next reward function.
+Use primary_score (mean episode return over last 10 updates) to judge improvement. Higher is better.
