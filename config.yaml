@@ -4,8 +4,8 @@
 llm:
   base_url: "https://api.studio.nebius.ai/v1/"
   api_key_env: "NEBIUS_API_KEY"
-  model: "Qwen/Qwen3-235B-Thinking"
-  fallback_model: "meta-llama/Meta-Llama-3.3-70B-Instruct"
+  model: "Qwen/Qwen3-235B-A22B-Thinking-2507"
+  fallback_model: "meta-llama/Llama-3.3-70B-Instruct"
   temperature: 0.7
   max_tokens: 4096
 
